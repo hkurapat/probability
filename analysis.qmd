@@ -2,4 +2,131 @@
 title: "Probability"
 author: "Harshil Kurapati"
 format: html
+execute:
+  echo: false
 ---
+
+```{r}
+#| message: false
+library(tidyverse)
+```
+
+```{r}
+#| cache: true
+throw_dice <- function(n = 1, weights = rep(1/6, 6)) {
+  d1 <- sample(1:6, n, replace = TRUE, prob = weights)
+  d2 <- sample(1:6, n, replace = TRUE, prob = weights)
+  d1 + d2
+}
+```
+
+```{r}
+tibble(
+  face = rep(1:6, 2),
+  prob = c(rep(1/6, 6), c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30)),
+  die  = rep(c("Fair", "Loaded"), each = 6)
+) |>
+  ggplot(aes(x = factor(face), y = prob)) +
+  geom_col(fill = "grey50") +
+  facet_wrap(~ die) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(title = "Theoretical PDFs: fair die vs. loaded die",
+       subtitle = "The loaded die's only difference is a taller 6 bar",
+       x = "Face", y = "Probability") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(10)
+rolls_20 <- sample(1:6, 20, replace = TRUE,
+                   prob = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30))
+
+tibble(face = rolls_20) |>
+  ggplot(aes(x = factor(face, levels = 1:6))) +
+  geom_bar(fill = "grey50") +
+  labs(title = "Twenty rolls of the loaded die",
+       subtitle = "The 6 bar looks tall --- but the sample is small enough that this could be luck",
+       x = "Face", y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(10)
+rolls_200 <- sample(1:6, 200, replace = TRUE,
+                    prob = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30))
+
+tibble(face = rolls_200) |>
+  ggplot(aes(x = factor(face, levels = 1:6))) +
+  geom_bar(fill = "grey50") +
+  labs(title = "Two hundred rolls of the loaded die",
+       subtitle = "The 6 bar is now clearly taller than the other five",
+       x = "Face", y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+tibble(face = 1:6,
+       p_loaded = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30),
+       p_fair   = 1/6,
+       likelihood_ratio = round(p_loaded / p_fair, 3))
+```
+
+```{r}
+#| cache: true
+log_lr <- function(rolls) {
+  loaded <- c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30)
+  log(loaded[rolls] / (1/6))
+}
+```
+
+```{r}
+set.seed(10)
+rolls_200 <- sample(1:6, 200, replace = TRUE,
+                    prob = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30))
+posterior_loaded_200 <- 1 / (1 + exp(-sum(log_lr(rolls_200))))
+round(posterior_loaded_200, 6)
+```
+
+```{r}
+set.seed(10)
+rolls_200 <- sample(1:6, 200, replace = TRUE,
+                    prob = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30))
+
+tibble(
+  roll      = 1:200,
+  log_odds  = cumsum(log_lr(rolls_200)),
+  posterior = 1 / (1 + exp(-log_odds))
+) |>
+  ggplot(aes(x = roll, y = posterior)) +
+  geom_line() +
+  geom_hline(yintercept = 0.95, color = "red", linetype = "dashed") +
+  scale_y_continuous(limits = c(0, 1),
+                     labels = scales::label_percent(accuracy = 1)) +
+  labs(title = "Posterior probability that the die is loaded, roll by roll",
+       subtitle = "Starts at 50%; each roll nudges the line up (a 6) or down (anything else)",
+       x = "Roll number",
+       y = "Posterior probability of \"loaded\"") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(42)
+stop_times <- replicate(1000, {
+  rolls    <- sample(1:6, 500, replace = TRUE,
+                     prob = c(0.14, 0.14, 0.14, 0.14, 0.14, 0.30))
+  log_odds <- cumsum(log_lr(rolls))
+  post     <- 1 / (1 + exp(-log_odds))
+  which(post >= 0.95)[1]
+})
+
+tibble(stop_time = stop_times[!is.na(stop_times)]) |>
+  ggplot(aes(x = stop_time)) +
+  geom_histogram(binwidth = 10, fill = "grey50", color = "white") +
+  geom_vline(xintercept = median(stop_times, na.rm = TRUE),
+             color = "red", linetype = "dashed") +
+  labs(title = "Rolls needed to reach 95% posterior on \"loaded\"",
+       subtitle = "1,000 simulated runs; red dashed line is the median",
+       x = "Rolls until posterior >= 0.95",
+       y = "Count") +
+  theme_minimal()
+```
